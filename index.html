@@ -29,7 +29,7 @@
     .main {
       padding: 25px;
       display: grid;
-      grid-template-columns: 1fr 400px;
+      grid-template-columns: 1fr 420px;
       gap: 25px;
     }
     .preview {
@@ -57,28 +57,22 @@
       border-radius: 6px;
       font-size: 16px;
     }
-    input[type="range"] {
-      width: 100%;
-    }
+    input[type="range"] { width: 100%; }
     button {
-      width: 100%;
-      padding: 14px;
-      margin: 10px 0;
-      font-size: 16px;
-      font-weight: bold;
+      padding: 10px 14px;
+      margin: 5px 3px;
+      font-size: 15px;
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
       cursor: pointer;
     }
+    .btn-quick { background: #e0e0e0; color: #333; }
+    .btn-quick:hover { background: #ccc; }
     .btn-primary { background: #0066ff; color: white; }
     .btn-primary:hover { background: #0052cc; }
     .btn-success { background: #28a745; color: white; }
     .btn-success:hover { background: #218838; }
-    .row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     footer {
       text-align: center;
       padding: 15px;
@@ -94,18 +88,26 @@
   <div class="container">
     <header>
       <h1>📸 圖片加水印工具</h1>
-      <p>支援多行文字 + 自定義位置</p>
+      <p>支援多行 + 日期時間 + 自定義快速輸入</p>
     </header>
 
     <div class="main">
-      <div class="preview-area">
+      <div>
         <input type="file" id="upload" accept="image/*" style="margin-bottom:15px;">
         <img id="preview" class="preview" src="" alt="預覽圖片">
       </div>
 
       <div class="controls">
         <label>水印文字（支援多行）</label>
-        <textarea id="text" rows="3" placeholder="第一行&#10;第二行">© 你的名字&#10;2026</textarea>
+        <textarea id="text" rows="4" placeholder="輸入水印文字...">© 你的名字</textarea>
+
+        <!-- 快速日期按鈕 -->
+        <label>快速加入日期時間</label>
+        <div>
+          <button class="btn-quick" id="btnYYMMDD">YYMMDD</button>
+          <button class="btn-quick" id="btnFullDate">YYMMDD h시</button>
+          <button class="btn-quick" id="btnCustom">yyddmm h시</button>
+        </div>
 
         <label>字體大小 <span id="sizeValue">42</span>px</label>
         <input type="range" id="size" min="12" max="150" value="42">
@@ -122,7 +124,6 @@
           <option value="custom">自定義座標</option>
         </select>
 
-        <!-- 預設位置 -->
         <div id="presetGroup">
           <label>預設位置</label>
           <select id="presetPosition">
@@ -134,17 +135,10 @@
           </select>
         </div>
 
-        <!-- 自定義座標 -->
         <div id="customGroup" style="display:none;">
           <div class="row">
-            <div>
-              <label>X 座標 (px)</label>
-              <input type="number" id="customX" value="100" min="0">
-            </div>
-            <div>
-              <label>Y 座標 (px)</label>
-              <input type="number" id="customY" value="100" min="0">
-            </div>
+            <div><label>X 座標 (px)</label><input type="number" id="customX" value="100"></div>
+            <div><label>Y 座標 (px)</label><input type="number" id="customY" value="100"></div>
           </div>
         </div>
 
@@ -156,15 +150,14 @@
       </div>
     </div>
 
-    <footer>
-      純前端工具 • 所有處理喺瀏覽器完成
-    </footer>
+    <footer>純前端工具 • 所有處理喺你瀏覽器完成</footer>
   </div>
 
   <script>
     const upload = document.getElementById('upload');
     const previewImg = document.getElementById('preview');
     const textArea = document.getElementById('text');
+    
     const sizeSlider = document.getElementById('size');
     const sizeValue = document.getElementById('sizeValue');
     const colorInput = document.getElementById('color');
@@ -172,6 +165,7 @@
     const opacityValue = document.getElementById('opacityValue');
     const rotationSlider = document.getElementById('rotation');
     const rotationValue = document.getElementById('rotationValue');
+
     const positionMode = document.getElementById('positionMode');
     const presetGroup = document.getElementById('presetGroup');
     const customGroup = document.getElementById('customGroup');
@@ -185,20 +179,44 @@
     let originalImage = null;
     let currentWatermarked = null;
 
-    // 更新數值顯示
+    // 更新顯示數值
     sizeSlider.oninput = () => sizeValue.textContent = sizeSlider.value;
     opacitySlider.oninput = () => opacityValue.textContent = opacitySlider.value;
     rotationSlider.oninput = () => rotationValue.textContent = rotationSlider.value;
 
-    // 切換位置模式
+    // 位置模式切換
     positionMode.addEventListener('change', () => {
-      if (positionMode.value === 'preset') {
-        presetGroup.style.display = 'block';
-        customGroup.style.display = 'none';
-      } else {
-        presetGroup.style.display = 'none';
-        customGroup.style.display = 'block';
-      }
+      presetGroup.style.display = positionMode.value === 'preset' ? 'block' : 'none';
+      customGroup.style.display = positionMode.value === 'custom' ? 'block' : 'none';
+      if (originalImage) applyWatermark();
+    });
+
+    // 快速日期按鈕
+    function getCurrentDate() {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(2);
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const hour = String(now.getHours()).padStart(2, '0');
+      return { yy, mm, dd, hour };
+    }
+
+    document.getElementById('btnYYMMDD').addEventListener('click', () => {
+      const { yy, mm, dd } = getCurrentDate();
+      textArea.value += `\n${yy}${mm}${dd}`;
+      if (originalImage) applyWatermark();
+    });
+
+    document.getElementById('btnFullDate').addEventListener('click', () => {
+      const { yy, mm, dd, hour } = getCurrentDate();
+      textArea.value += `\n${yy}${mm}${dd} ${hour}시`;
+      if (originalImage) applyWatermark();
+    });
+
+    document.getElementById('btnCustom').addEventListener('click', () => {
+      const { yy, mm, dd, hour } = getCurrentDate();
+      // yyddmm h시 格式（按你要求）
+      textArea.value += `\n${yy}${dd}${mm} ${hour}시`;
       if (originalImage) applyWatermark();
     });
 
@@ -206,9 +224,8 @@
     upload.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
       const reader = new FileReader();
-      reader.onload = function(event) {
+      reader.onload = (event) => {
         previewImg.src = event.target.result;
         originalImage = new Image();
         originalImage.onload = () => applyWatermark();
@@ -226,7 +243,7 @@
       canvas.height = originalImage.height;
       ctx.drawImage(originalImage, 0, 0);
 
-      const lines = textArea.value.split('\n');
+      const lines = textArea.value.split('\n').filter(line => line.trim() !== '');
       const fontSize = parseInt(sizeSlider.value);
       const opacity = parseInt(opacitySlider.value) / 100;
       const color = colorInput.value;
@@ -237,18 +254,17 @@
       ctx.globalAlpha = opacity;
       ctx.textBaseline = 'top';
 
-      const lineHeight = fontSize * 1.2;
-      let startX, startY;
+      const lineHeight = fontSize * 1.25;
+      let startX = 100, startY = 100;
 
       if (positionMode.value === 'preset') {
         const textWidth = Math.max(...lines.map(line => ctx.measureText(line).width));
         const padding = 40;
-
         switch(presetPosition.value) {
-          case 'top-left':    startX = padding; startY = padding; break;
-          case 'top-right':   startX = canvas.width - textWidth - padding; startY = padding; break;
+          case 'top-left': startX = padding; startY = padding; break;
+          case 'top-right': startX = canvas.width - textWidth - padding; startY = padding; break;
           case 'bottom-left': startX = padding; startY = canvas.height - padding - lineHeight * (lines.length - 1); break;
-          case 'bottom-right':startX = canvas.width - textWidth - padding; startY = canvas.height - padding - lineHeight * (lines.length - 1); break;
+          case 'bottom-right': startX = canvas.width - textWidth - padding; startY = canvas.height - padding - lineHeight * (lines.length - 1); break;
           case 'center':
             startX = (canvas.width - textWidth) / 2;
             startY = (canvas.height - lineHeight * lines.length) / 2;
@@ -259,9 +275,8 @@
         startY = parseInt(customY.value) || 100;
       }
 
-      // 繪製多行文字
-      lines.forEach((line, index) => {
-        const y = startY + index * lineHeight;
+      lines.forEach((line, i) => {
+        const y = startY + i * lineHeight;
         if (rotation !== 0) {
           ctx.save();
           ctx.translate(startX, y);
@@ -278,10 +293,11 @@
     }
 
     applyBtn.addEventListener('click', applyWatermark);
+
     downloadBtn.addEventListener('click', () => {
       if (!currentWatermarked) return alert('請先上傳圖片並套用水印');
       const link = document.createElement('a');
-      link.download = 'watermarked-image.jpg';
+      link.download = `watermarked_${new Date().toISOString().slice(0,10)}.jpg`;
       link.href = currentWatermarked;
       link.click();
     });
