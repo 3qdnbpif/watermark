@@ -29,11 +29,8 @@
     .main {
       padding: 25px;
       display: grid;
-      grid-template-columns: 1fr 380px;
+      grid-template-columns: 1fr 400px;
       gap: 25px;
-    }
-    .preview-area {
-      text-align: center;
     }
     .preview {
       max-width: 100%;
@@ -53,7 +50,7 @@
       margin: 12px 0 6px;
       font-weight: 600;
     }
-    input[type="text"], select, input[type="color"] {
+    textarea, input, select {
       width: 100%;
       padding: 10px;
       border: 1px solid #ccc;
@@ -77,6 +74,11 @@
     .btn-primary:hover { background: #0052cc; }
     .btn-success { background: #28a745; color: white; }
     .btn-success:hover { background: #218838; }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
     footer {
       text-align: center;
       padding: 15px;
@@ -92,24 +94,21 @@
   <div class="container">
     <header>
       <h1>📸 圖片加水印工具</h1>
-      <p>上傳相片，自訂文字、水印位置、顏色等</p>
+      <p>支援多行文字 + 自定義位置</p>
     </header>
 
     <div class="main">
-      <!-- 預覽區 -->
       <div class="preview-area">
         <input type="file" id="upload" accept="image/*" style="margin-bottom:15px;">
         <img id="preview" class="preview" src="" alt="預覽圖片">
-        <p id="status" style="margin-top:10px; color:#666;"></p>
       </div>
 
-      <!-- 控制面板 -->
       <div class="controls">
-        <label>水印文字</label>
-        <input type="text" id="text" value="© 你的名字 2026" placeholder="輸入水印文字">
+        <label>水印文字（支援多行）</label>
+        <textarea id="text" rows="3" placeholder="第一行&#10;第二行">© 你的名字&#10;2026</textarea>
 
-        <label>字體大小 <span id="sizeValue">40</span>px</label>
-        <input type="range" id="size" min="12" max="150" value="40">
+        <label>字體大小 <span id="sizeValue">42</span>px</label>
+        <input type="range" id="size" min="12" max="150" value="42">
 
         <label>文字顏色</label>
         <input type="color" id="color" value="#ffffff">
@@ -117,14 +116,37 @@
         <label>透明度 <span id="opacityValue">70</span>%</label>
         <input type="range" id="opacity" min="10" max="100" value="70">
 
-        <label>位置</label>
-        <select id="position">
-          <option value="bottom-right">右下角</option>
-          <option value="bottom-left">左下角</option>
-          <option value="top-right">右上角</option>
-          <option value="top-left">左上角</option>
-          <option value="center">正中間</option>
+        <label>位置模式</label>
+        <select id="positionMode">
+          <option value="preset">預設位置</option>
+          <option value="custom">自定義座標</option>
         </select>
+
+        <!-- 預設位置 -->
+        <div id="presetGroup">
+          <label>預設位置</label>
+          <select id="presetPosition">
+            <option value="bottom-right">右下角</option>
+            <option value="bottom-left">左下角</option>
+            <option value="top-right">右上角</option>
+            <option value="top-left">左上角</option>
+            <option value="center">正中間</option>
+          </select>
+        </div>
+
+        <!-- 自定義座標 -->
+        <div id="customGroup" style="display:none;">
+          <div class="row">
+            <div>
+              <label>X 座標 (px)</label>
+              <input type="number" id="customX" value="100" min="0">
+            </div>
+            <div>
+              <label>Y 座標 (px)</label>
+              <input type="number" id="customY" value="100" min="0">
+            </div>
+          </div>
+        </div>
 
         <label>旋轉角度 <span id="rotationValue">0</span>°</label>
         <input type="range" id="rotation" min="-45" max="45" value="0">
@@ -135,22 +157,28 @@
     </div>
 
     <footer>
-      純前端工具 • 所有處理喺你瀏覽器度完成 • 資料唔會上傳
+      純前端工具 • 所有處理喺瀏覽器完成
     </footer>
   </div>
 
   <script>
     const upload = document.getElementById('upload');
     const previewImg = document.getElementById('preview');
-    const textInput = document.getElementById('text');
+    const textArea = document.getElementById('text');
     const sizeSlider = document.getElementById('size');
     const sizeValue = document.getElementById('sizeValue');
     const colorInput = document.getElementById('color');
     const opacitySlider = document.getElementById('opacity');
     const opacityValue = document.getElementById('opacityValue');
-    const positionSelect = document.getElementById('position');
     const rotationSlider = document.getElementById('rotation');
     const rotationValue = document.getElementById('rotationValue');
+    const positionMode = document.getElementById('positionMode');
+    const presetGroup = document.getElementById('presetGroup');
+    const customGroup = document.getElementById('customGroup');
+    const presetPosition = document.getElementById('presetPosition');
+    const customX = document.getElementById('customX');
+    const customY = document.getElementById('customY');
+
     const applyBtn = document.getElementById('applyBtn');
     const downloadBtn = document.getElementById('downloadBtn');
 
@@ -162,6 +190,18 @@
     opacitySlider.oninput = () => opacityValue.textContent = opacitySlider.value;
     rotationSlider.oninput = () => rotationValue.textContent = rotationSlider.value;
 
+    // 切換位置模式
+    positionMode.addEventListener('change', () => {
+      if (positionMode.value === 'preset') {
+        presetGroup.style.display = 'block';
+        customGroup.style.display = 'none';
+      } else {
+        presetGroup.style.display = 'none';
+        customGroup.style.display = 'block';
+      }
+      if (originalImage) applyWatermark();
+    });
+
     // 上傳圖片
     upload.addEventListener('change', (e) => {
       const file = e.target.files[0];
@@ -171,27 +211,22 @@
       reader.onload = function(event) {
         previewImg.src = event.target.result;
         originalImage = new Image();
-        originalImage.onload = () => {
-          applyWatermark();
-        };
+        originalImage.onload = () => applyWatermark();
         originalImage.src = event.target.result;
       };
       reader.readAsDataURL(file);
     });
 
-    // 套用水印
     function applyWatermark() {
       if (!originalImage) return;
 
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-
       canvas.width = originalImage.width;
       canvas.height = originalImage.height;
-
       ctx.drawImage(originalImage, 0, 0);
 
-      const text = textInput.value || 'Watermark';
+      const lines = textArea.value.split('\n');
       const fontSize = parseInt(sizeSlider.value);
       const opacity = parseInt(opacitySlider.value) / 100;
       const color = colorInput.value;
@@ -200,49 +235,51 @@
       ctx.font = `bold ${fontSize}px Arial`;
       ctx.fillStyle = color;
       ctx.globalAlpha = opacity;
-      ctx.textBaseline = 'middle';
+      ctx.textBaseline = 'top';
 
-      // 計算位置
-      let x, y;
-      const padding = 40;
-      const textWidth = ctx.measureText(text).width;
+      const lineHeight = fontSize * 1.2;
+      let startX, startY;
 
-      switch(positionSelect.value) {
-        case 'top-left':
-          x = padding; y = padding + fontSize/2; break;
-        case 'top-right':
-          x = canvas.width - textWidth - padding; y = padding + fontSize/2; break;
-        case 'bottom-left':
-          x = padding; y = canvas.height - padding; break;
-        case 'bottom-right':
-          x = canvas.width - textWidth - padding; y = canvas.height - padding; break;
-        case 'center':
-          x = (canvas.width - textWidth) / 2; y = canvas.height / 2; break;
-      }
+      if (positionMode.value === 'preset') {
+        const textWidth = Math.max(...lines.map(line => ctx.measureText(line).width));
+        const padding = 40;
 
-      // 旋轉
-      if (rotation !== 0) {
-        ctx.save();
-        ctx.translate(x + textWidth/2, y);
-        ctx.rotate(rotation * Math.PI / 180);
-        ctx.fillText(text, -textWidth/2, 0);
-        ctx.restore();
+        switch(presetPosition.value) {
+          case 'top-left':    startX = padding; startY = padding; break;
+          case 'top-right':   startX = canvas.width - textWidth - padding; startY = padding; break;
+          case 'bottom-left': startX = padding; startY = canvas.height - padding - lineHeight * (lines.length - 1); break;
+          case 'bottom-right':startX = canvas.width - textWidth - padding; startY = canvas.height - padding - lineHeight * (lines.length - 1); break;
+          case 'center':
+            startX = (canvas.width - textWidth) / 2;
+            startY = (canvas.height - lineHeight * lines.length) / 2;
+            break;
+        }
       } else {
-        ctx.fillText(text, x, y);
+        startX = parseInt(customX.value) || 100;
+        startY = parseInt(customY.value) || 100;
       }
 
-      currentWatermarked = canvas.toDataURL('image/jpeg', 0.95);
+      // 繪製多行文字
+      lines.forEach((line, index) => {
+        const y = startY + index * lineHeight;
+        if (rotation !== 0) {
+          ctx.save();
+          ctx.translate(startX, y);
+          ctx.rotate(rotation * Math.PI / 180);
+          ctx.fillText(line, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.fillText(line, startX, y);
+        }
+      });
+
+      currentWatermarked = canvas.toDataURL('image/jpeg', 0.92);
       previewImg.src = currentWatermarked;
     }
 
     applyBtn.addEventListener('click', applyWatermark);
-
-    // 下載
     downloadBtn.addEventListener('click', () => {
-      if (!currentWatermarked) {
-        alert('請先上傳圖片並套用水印');
-        return;
-      }
+      if (!currentWatermarked) return alert('請先上傳圖片並套用水印');
       const link = document.createElement('a');
       link.download = 'watermarked-image.jpg';
       link.href = currentWatermarked;
@@ -250,7 +287,7 @@
     });
 
     // 即時更新
-    document.querySelectorAll('input, select').forEach(el => {
+    document.querySelectorAll('input, select, textarea').forEach(el => {
       el.addEventListener('input', () => {
         if (originalImage) applyWatermark();
       });
